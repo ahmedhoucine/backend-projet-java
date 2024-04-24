@@ -23,28 +23,41 @@ import java.util.Optional;
 
 public class UserController {
 
-     @Autowired
+    @Autowired
     private UserRepository userRepository;
 
 
     @GetMapping("/users")
-    public List<UserModel> getAllUsers() {return userRepository.findAll();}
+    public List<UserModel> getAllUsers() {
+        return userRepository.findAll();
+    }
 
     @GetMapping("/users/{id}")
     public UserModel getUser(@PathVariable String id) {
         return userRepository.findById(id).orElseThrow(() -> new RuntimeException("Cannot Find Item By ID: " + id));
     }
 
-    @PostMapping("/users")
-    public ResponseEntity<String> saveUser(@RequestBody UserModel user) {
-        UserModel saveduser = userRepository.insert(user);
-        URI uri = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
-                .buildAndExpand(saveduser.getId())
-                .toUri();
+    @GetMapping("/register")
+    public LoginResponse saveUser(@RequestParam String username, @RequestParam String password) {
+        // Check if a user with the same username already exists
 
-        return ResponseEntity.created(uri).build();
+        UserModel existingUser = userRepository.findByUsername(username);
+        if (existingUser != null) {
+            return new LoginResponse(false, "username already used", null);
+        } else {
+
+            // If the username is unique, save the new user
+            UserModel savedUser = userRepository.save(new UserModel(username,password));
+            URI uri = ServletUriComponentsBuilder.fromCurrentRequest()
+                    .path("/{id}")
+                    .buildAndExpand(savedUser.getId())
+                    .toUri();
+            return new LoginResponse(true, "Register successful", new UserModel(username,password));
+        }
     }
+
+
+
 
     @DeleteMapping("/users/{id}")
     public ResponseEntity<Void> deleteUserById(@PathVariable String id) {
@@ -53,27 +66,15 @@ public class UserController {
     }
 
 
-
-    @PostMapping("/users/login")
-    public ResponseEntity<LoginResponse> loginUser(@RequestBody UserModel user) {
-        // Retrieve the user from the database based on the provided user ID
-        Optional<UserModel> userOptional = userRepository.findById(user.getId());
-
-        // Extract UserModel from Optional
-        UserModel existingUser = userOptional.orElse(null);
-
-        // Check if the user exists and the provided password matches
-        if (existingUser != null) {
-            if (existingUser.getPassword().equals(user.getPassword())) {
-                // User authenticated successfully
-                return ResponseEntity.ok().body(new LoginResponse(true, "Login success"));
-            } else {
-                // Incorrect password
-                return ResponseEntity.ok().body(new LoginResponse(false, "Wrong password"));
-            }
+    @GetMapping("/login")
+    public LoginResponse login(@RequestParam String username, @RequestParam String password) {
+        UserModel user = userRepository.findByUsername(username);
+        if (user == null) {
+            return new LoginResponse(false, "User not found", null);
+        } else if (!user.getPassword().equals(password)) {
+            return new LoginResponse(false, "Wrong password", null);
         } else {
-            // User not found
-            return ResponseEntity.ok().body(new LoginResponse(false, "User not found"));
+            return new LoginResponse(true, "Login successful", user);
         }
     }
 }
